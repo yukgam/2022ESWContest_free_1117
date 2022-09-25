@@ -6,7 +6,6 @@
 
 //작동 트리거
 int UNFLAG = 0;
-int flage22 = 0 ; //front 에서 2,2 신호시 함수를 돌리기 위한 변수
 unsigned long TIME = 0;
 
 char Buff[10]; //센서에서 가져와 저장되있는 공간
@@ -206,7 +205,7 @@ if (millis()<1000) return;
       }
       else if(sensorLT==2&&sensorRT==2){
         prevmillis = millis();
-        flage22=1;
+        
         twotwo();
       }
       else if(sensorLT==0&&sensorRT==1){
