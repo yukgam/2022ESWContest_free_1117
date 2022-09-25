@@ -1,0 +1,326 @@
+#define IUM_MODE_TRIG 0x30 // '1' 외부 트리거 모드
+#define IUM_MODE_COM 0x31 // '2' UART 커맨드에 의한 동작모드
+#define IUM_MODE_AUTO 0x32 // '3' Free RUN
+#define IUM_MODE_OBJECT 0x33 // '4' 물체감지 ud모드
+#define IUM_GET_RLRANGE_CM 0x22 // 음파펄스를 출력하고 에코신호를 계측한 후 측정값을 TX 로 보낸다
+
+//작동 트리거
+int UNFLAG = 0;
+int flage22 = 0 ; //front 에서 2,2 신호시 함수를 돌리기 위한 변수
+unsigned long TIME = 0;
+
+char Buff[10]; //센서에서 가져와 저장되있는 공간
+float distance[3]; // float로 전환된 거리데이터 임시저장
+
+unsigned long prevmillis = 0; //delay 대신 사용하기 위해 millis 사용함
+unsigned long currentMillis;
+
+//머리전극//변경필요
+int leftfront = 11;
+int rightfront = 7;
+int leftback = 9;
+int rightback = 5;
+
+
+//센서 명령 코드 시리얼 3개이므로 3개 사용
+void SendCmd1(unsigned char address, unsigned char cmd)
+{
+    Serial1.write(address); 
+    Serial1.write(cmd);
+}
+char GetSevenByte1(void)
+{
+    if(Serial1.available() >= 7) 
+    {
+      for(byte n=0; n<7; n++) Buff[n] = Serial1.read();
+      Buff[7] = 0;            return 1;
+    }
+    else return 0;
+}
+void SendCmd2(unsigned char address, unsigned char cmd)
+{
+    Serial2.write(address); 
+    Serial2.write(cmd); 
+}
+char GetSevenByte2(void)
+{
+    if(Serial2.available() >= 7) 
+    {
+      for(byte n=0; n<7; n++) Buff[n] = Serial2.read();
+      Buff[7] = 0;       return 1;
+    }
+    else return 0;
+}
+void SendCmd3(unsigned char address, unsigned char cmd)
+{
+    Serial3.write(address); 
+    Serial3.write(cmd); 
+}
+char GetSevenByte3(void)
+{
+    if(Serial3.available() >= 7) 
+    {
+      for(byte n=0; n<7; n++) Buff[n] = Serial3.read();
+      Buff[7] = 0;       return 1;
+    }
+    else return 0;
+}
+
+
+//front 9가지 코드
+void zerozero(void){
+  //전부 끄면 전류는 안흐른다.
+  digitalWrite(rightfront, LOW);
+  digitalWrite(rightback, LOW);
+  digitalWrite(leftfront, LOW);
+  digitalWrite(leftback, LOW);
+  
+  Serial.println("00" ); 
+  UNFLAG = 0;
+  }
+  void onezero(void){
+ //rightslide
+  digitalWrite(rightfront, LOW);
+  digitalWrite(rightback, LOW);
+  digitalWrite(leftfront, LOW);
+  digitalWrite(leftback, HIGH);
+  
+  Serial.println("10" ); 
+  TIME = 1500;
+  }
+  void zeroone(void){
+  //leftslide
+  digitalWrite(rightfront, LOW);
+  digitalWrite(rightback, HIGH);
+  digitalWrite(leftfront, LOW);
+  digitalWrite(leftback, LOW);
+  
+  Serial.println("01" ); 
+  TIME = 1500;
+  }
+  void oneone(void){
+  //rightslide
+  digitalWrite(rightfront, LOW);
+  digitalWrite(rightback, LOW);
+  digitalWrite(leftfront, LOW);
+  digitalWrite(leftback, HIGH);
+  
+  Serial.println("11" ); 
+  TIME = 2000;
+  }
+  void twozero(void){
+     //rightturn
+  digitalWrite(rightfront, HIGH);
+  digitalWrite(rightback, LOW);
+  digitalWrite(leftfront, LOW);
+  digitalWrite(leftback, HIGH);
+  
+  
+  Serial.println("20" ); 
+  TIME = 5000;
+  }
+  void zerotwo(void){
+ 
+  //leftturn
+  digitalWrite(rightfront, LOW);
+  digitalWrite(rightback, HIGH);
+  digitalWrite(leftfront, HIGH);
+  digitalWrite(leftback, LOW);
+  
+  Serial.println("02" ); 
+  TIME = 5000;
+  }
+  void twoone(void){
+  //rightturn
+  digitalWrite(rightfront, HIGH);
+  digitalWrite(rightback, LOW);
+  digitalWrite(leftfront, LOW);
+  digitalWrite(leftback, HIGH);
+  TIME = 5000;
+  
+  Serial.println("21" ); 
+  }
+  void onetwo(void){
+ 
+   //leftturn
+  digitalWrite(rightfront, LOW);
+  digitalWrite(rightback, HIGH);
+  digitalWrite(leftfront, HIGH);
+  digitalWrite(leftback, LOW);
+  Serial.println("12" ); 
+  TIME = 5000;
+  }
+  void twotwo(void){
+  //backward
+  digitalWrite(rightfront, HIGH);
+  digitalWrite(rightback, LOW);
+  digitalWrite(leftfront, HIGH);
+  digitalWrite(leftback, LOW);
+  Serial.println("22"); 
+  TIME = 4000;
+  }
+  
+  //하단 장애물 충돌회피명령
+  void understop(void){
+  digitalWrite(rightfront, HIGH); //back offset
+  digitalWrite(rightback, LOW);
+  digitalWrite(leftfront, HIGH);
+  digitalWrite(leftback, LOW);
+  UNFLAG = 1;
+  TIME = 4000;
+  Serial.println("UU"); 
+  }
+  
+
+void operate(int undertrg, int sensorLT, int sensorRT)
+{
+
+if (millis()<1000) return;
+  
+  if (undertrg == 1){
+    currentMillis = millis();
+    if (currentMillis - prevmillis <= TIME){
+      if (UNFLAG == 1){
+        return;
+      }
+      else{
+        understop();
+        prevmillis = millis();
+        
+      }
+    }
+    else{
+      understop();
+      prevmillis = millis();
+    }
+  }
+  else{
+
+  
+    currentMillis = millis();
+    if(currentMillis - prevmillis >=TIME)//3초 동안 다른 명령을 하지 않고 넘어간다.
+    {
+      if((sensorLT==1&&sensorRT==1)){
+        prevmillis = millis();
+        oneone();
+      }
+      else if(sensorLT==2&&sensorRT==2){
+        prevmillis = millis();
+        flage22=1;
+        twotwo();
+      }
+      else if(sensorLT==0&&sensorRT==1){
+        prevmillis = millis();
+        zeroone();
+      }
+      else if(sensorLT==1&&sensorRT==0){
+        prevmillis = millis();
+        onezero();
+      }
+      else if(sensorLT==0&&sensorRT==2){
+        prevmillis = millis();
+        zerotwo();
+      }
+      else if(sensorLT==2&&sensorRT==0){
+        prevmillis = millis();
+        twozero();}
+      else if(sensorLT==1&&sensorRT==2){
+        prevmillis = millis();
+        onetwo();
+      }
+      else if(sensorLT==2&&sensorRT==1){
+        prevmillis = millis();
+        twoone;
+      }
+      else
+      zerozero();
+      }
+  
+  }
+}
+
+
+
+//센서 값을 0,1,2로 구별하는 함수 100 이하면 0,100~200은 1, 200이상은 2 이다.
+int sensordf(float sdata){
+  int sen=0;// 기본 상태에서 아무것도 감지 안되면 0 이다
+  if(sdata<100.0)
+    {
+      sen = 2;
+      }
+    else if(100.0 < sdata && sdata < 200.0)
+    {
+      sen = 1;
+      }
+      else
+      {
+        sen = 0;
+        }
+  return sen;
+}
+//센서값을 0,1로 구분
+  int sensordu(float sdata){
+  int sen=0;// 기본 상태에서 아무것도 감지 안되면 0 이다
+  if(sdata<174.0){
+    sen = 1;
+    return sen;
+  }
+  else
+  
+  return sen;
+}
+
+
+//buff에 저장된 데이터를 float 로 바꾸는 함수
+int distance_get(int i){
+        char dist[5];
+        for(byte n=0; n<5; n++) dist[n] = Buff[n+1];
+        distance[i] = atof(dist);  
+}
+
+//setup 부터 시작, 시리얼 통신, pin 설정, pin 초기화
+void setup()
+{
+    Serial.begin (9600); // 디버그용 시리얼 포트
+    Serial1.begin (9600); //1번 초음파
+    Serial2.begin (9600); //2번 초음파
+    Serial3.begin (9600); //3번 초음파  
+    SendCmd1(1, IUM_MODE_COM);
+    SendCmd2(2, IUM_MODE_COM);
+    SendCmd3(3, IUM_MODE_COM);    
+    
+currentMillis = millis(); // currentmillis 초기화
+
+  pinMode(rightfront,OUTPUT);
+  pinMode(rightback,OUTPUT);
+  pinMode(leftfront,OUTPUT);
+  pinMode(leftback,OUTPUT);//사용하는 핀들input output 전부 설정하기
+zerozero();//gvs 초기화
+//
+}
+
+//센서를 읽고 판단을 하는것을 계속 반복한다. 이때 딜레이를 사용하지 않고 millis 를 사용하여 센서 오류와 판단을 최적화 한다.
+void loop() {
+
+//3개 센서 3개 시리얼 통신 메가로 가능
+    SendCmd1(1,IUM_GET_RLRANGE_CM);
+   if(GetSevenByte1()==1)        distance_get(0);  
+    Serial.print(distance[0]);
+    Serial.print(',');
+    delay(35);    
+    
+    SendCmd2(2,IUM_GET_RLRANGE_CM);
+   if(GetSevenByte2()==1)     distance_get(1);  
+    Serial.print(distance[1]);   
+    Serial.print(',');
+    delay(35);   
+    
+   SendCmd3(3,IUM_GET_RLRANGE_CM);
+   if(GetSevenByte3()==1)     distance_get(2);  
+    Serial.print(distance[2]);      
+    Serial.println();        
+    delay(35);  
+
+    operate(sensordu(distance[0]), sensordf(distance[1]),sensordf(distance[2])); // front 는 정면을 바라보는 2,3 번 센서
+
+}
